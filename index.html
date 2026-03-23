@@ -5,7 +5,7 @@
     <title>OpenCloseTradeIdeas</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono&family=Syne:wght@800&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #ffffff; --text: #1a1a1a; --green: #00a36c; --red: #ff3b30; --border: #eeeeee; }
+        :root { --bg: #ffffff; --text: #1a1a1a; --green: #00a36c; --red: #ff3b30; --blue: #007aff; --border: #eeeeee; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; padding: 20px; max-width: 500px; margin: auto; }
         h1 { font-family: 'Syne', sans-serif; font-size: 28px; margin-bottom: 5px; }
@@ -14,16 +14,17 @@
         .stat-box { flex: 1; border: 1px solid var(--border); padding: 12px; border-radius: 8px; background: #f9f9f9; }
         .label { font-size: 10px; text-transform: uppercase; color: #888; font-weight: bold; }
         .val { font-size: 18px; font-weight: bold; margin-top: 4px; }
-        .card { border: 1px solid var(--border); padding: 15px; border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
-        .card:hover { border-color: #ccc; }
-        .stock-info { display: flex; flex-direction: column; }
+        .card { border: 1px solid var(--border); padding: 15px; border-radius: 12px; margin-bottom: 12px; }
+        .stock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .sym { font-weight: bold; font-size: 16px; }
-        .prc { color: #666; font-size: 14px; margin-top: 2px; }
-        .actions { display: flex; gap: 8px; }
-        button { border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: 'Space Mono'; font-size: 12px; transition: 0.2s; }
+        .prc { color: #666; font-size: 14px; }
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .pos-info { font-size: 11px; margin-bottom: 10px; color: var(--blue); font-weight: bold; }
+        button { border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: 'Space Mono'; font-size: 11px; }
         .buy-btn { background: var(--green); color: white; }
-        .sell-btn { background: var(--red); color: white; }
-        button:active { transform: scale(0.95); opacity: 0.8; }
+        .short-btn { background: var(--red); color: white; }
+        .close-btn { background: var(--text); color: white; width: 100%; margin-top: 8px; }
+        button:active { transform: scale(0.98); opacity: 0.9; }
     </style>
 </head>
 <body>
@@ -40,44 +41,51 @@
 
     <script>
         let cash = 10000;
-        let portfolio = {};
+        let portfolio = {}; // Positive = Long, Negative = Short
         const stocks = { "NVDA": 892.10, "AAPL": 175.45, "BTC": 68240.00, "TSLA": 171.20, "AMD": 180.50 };
 
         function updateUI() {
-            document.getElementById('cash').innerText = '$' + cash.toLocaleString(undefined, {minimumFractionDigits: 2});
             let totalVal = cash;
             for(let s in portfolio) totalVal += (portfolio[s] * stocks[s]);
+            
+            document.getElementById('cash').innerText = '$' + cash.toLocaleString(undefined, {minimumFractionDigits: 2});
             document.getElementById('equity').innerText = '$' + totalVal.toLocaleString(undefined, {minimumFractionDigits: 2});
             
             let html = '';
             for(let s in stocks) {
-                const hasPosition = portfolio[s] > 0;
+                const pos = portfolio[s] || 0;
+                const posText = pos > 0 ? `LONG: ${pos}` : pos < 0 ? `SHORT: ${Math.abs(pos)}` : '';
+                
                 html += `
                 <div class="card">
-                    <div class="stock-info">
+                    <div class="stock-header">
                         <span class="sym">${s}</span>
                         <span class="prc">$${stocks[s].toFixed(2)}</span>
                     </div>
+                    ${pos !== 0 ? `<div class="pos-info">${posText}</div>` : ''}
                     <div class="actions">
-                        ${hasPosition ? `<button class="sell-btn" onclick="sell('${s}')">CLOSE</button>` : ''}
-                        <button class="buy-btn" onclick="buy('${s}')">OPEN</button>
+                        <button class="buy-btn" onclick="trade('${s}', 1)">OPEN LONG</button>
+                        <button class="short-btn" onclick="trade('${s}', -1)">OPEN SHORT</button>
                     </div>
+                    ${pos !== 0 ? `<button class="close-btn" onclick="closePos('${s}')">CLOSE POSITION</button>` : ''}
                 </div>`;
             }
             document.getElementById('market-list').innerHTML = html;
         }
 
-        function buy(s) {
-            if(cash < stocks[s]) return alert("Insufficient Buying Power!");
-            cash -= stocks[s];
-            portfolio[s] = (portfolio[s] || 0) + 1;
+        function trade(s, dir) {
+            const cost = stocks[s];
+            if (dir === 1 && cash < cost) return alert("No cash!");
+            // When shorting (dir -1), cash actually increases initially
+            cash -= (cost * dir);
+            portfolio[s] = (portfolio[s] || 0) + dir;
             updateUI();
         }
 
-        function sell(s) {
-            if(!portfolio[s] || portfolio[s] <= 0) return;
-            cash += stocks[s];
-            portfolio[s] -= 1;
+        function closePos(s) {
+            const pos = portfolio[s];
+            cash += (pos * stocks[s]);
+            portfolio[s] = 0;
             updateUI();
         }
 
