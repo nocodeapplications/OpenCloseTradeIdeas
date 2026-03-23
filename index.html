@@ -7,24 +7,27 @@
     <style>
         :root { --bg: #ffffff; --text: #1a1a1a; --green: #00a36c; --red: #ff3b30; --blue: #007aff; --border: #eeeeee; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; padding: 20px; max-width: 500px; margin: auto; }
-        h1 { font-family: 'Syne', sans-serif; font-size: 28px; margin-bottom: 5px; }
-        .tagline { color: #666; font-size: 13px; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px; line-height: 1.4; }
-        .stats { display: flex; gap: 15px; margin-bottom: 25px; }
-        .stat-box { flex: 1; border: 1px solid var(--border); padding: 12px; border-radius: 8px; background: #f9f9f9; }
-        .label { font-size: 10px; text-transform: uppercase; color: #888; font-weight: bold; }
-        .val { font-size: 18px; font-weight: bold; margin-top: 4px; }
-        .card { border: 1px solid var(--border); padding: 15px; border-radius: 12px; margin-bottom: 12px; }
-        .stock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; padding: 20px; max-width: 500px; margin: auto; padding-bottom: 50px; }
+        h1 { font-family: 'Syne', sans-serif; font-size: 28px; letter-spacing: -1px; }
+        .tagline { color: #666; font-size: 11px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .stats { display: flex; gap: 10px; margin-bottom: 20px; }
+        .stat-box { flex: 1; border: 1px solid var(--border); padding: 12px; border-radius: 8px; background: #fcfcfc; }
+        .label { font-size: 9px; text-transform: uppercase; color: #999; font-weight: bold; }
+        .val { font-size: 18px; font-weight: bold; margin-top: 4px; transition: 0.3s; }
+        .card { border: 1px solid var(--border); padding: 15px; border-radius: 12px; margin-bottom: 10px; }
+        .stock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .sym { font-weight: bold; font-size: 16px; }
-        .prc { color: #666; font-size: 14px; }
+        .prc { font-size: 14px; font-weight: bold; padding: 2px 6px; border-radius: 4px; transition: 0.2s; }
+        .up { background: rgba(0, 163, 108, 0.1); color: var(--green); }
+        .down { background: rgba(255, 59, 48, 0.1); color: var(--red); }
         .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .pos-info { font-size: 11px; margin-bottom: 10px; color: var(--blue); font-weight: bold; }
-        button { border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: 'Space Mono'; font-size: 11px; }
+        .pos-info { font-size: 10px; margin-bottom: 8px; color: var(--blue); font-weight: bold; }
+        button { border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: 'Space Mono'; font-size: 10px; }
         .buy-btn { background: var(--green); color: white; }
         .short-btn { background: var(--red); color: white; }
-        .close-btn { background: var(--text); color: white; width: 100%; margin-top: 8px; }
-        button:active { transform: scale(0.98); opacity: 0.9; }
+        .close-btn { background: #333; color: white; width: 100%; margin-top: 8px; }
+        #log { margin-top: 30px; font-size: 10px; border-top: 1px solid var(--border); padding-top: 15px; }
+        .log-entry { padding: 5px 0; border-bottom: 1px dotted #eee; color: #777; }
     </style>
 </head>
 <body>
@@ -38,11 +41,13 @@
     </div>
 
     <div id="market-list"></div>
+    <div id="log"><strong>TRADE HISTORY</strong></div>
 
     <script>
-        let cash = 10000;
-        let portfolio = {}; // Positive = Long, Negative = Short
-        const stocks = { "NVDA": 892.10, "AAPL": 175.45, "BTC": 68240.00, "TSLA": 171.20, "AMD": 180.50 };
+        let cash = parseFloat(localStorage.getItem('trade_cash')) || 10000;
+        let portfolio = JSON.parse(localStorage.getItem('trade_port')) || {};
+        let logs = JSON.parse(localStorage.getItem('trade_logs')) || [];
+        const stocks = { "NVDA": 892.10, "AAPL": 175.45, "BTC": 68240, "TSLA": 171.20, "AMD": 180.50 };
 
         function updateUI() {
             let totalVal = cash;
@@ -55,40 +60,70 @@
             for(let s in stocks) {
                 const pos = portfolio[s] || 0;
                 const posText = pos > 0 ? `LONG: ${pos}` : pos < 0 ? `SHORT: ${Math.abs(pos)}` : '';
-                
                 html += `
                 <div class="card">
-                    <div class="stock-header">
-                        <span class="sym">${s}</span>
-                        <span class="prc">$${stocks[s].toFixed(2)}</span>
-                    </div>
+                    <div class="stock-header"><span class="sym">${s}</span><span id="price-${s}" class="prc">$${stocks[s].toFixed(2)}</span></div>
                     ${pos !== 0 ? `<div class="pos-info">${posText}</div>` : ''}
                     <div class="actions">
                         <button class="buy-btn" onclick="trade('${s}', 1)">OPEN LONG</button>
                         <button class="short-btn" onclick="trade('${s}', -1)">OPEN SHORT</button>
                     </div>
-                    ${pos !== 0 ? `<button class="close-btn" onclick="closePos('${s}')">CLOSE POSITION</button>` : ''}
+                    ${pos !== 0 ? `<button class="close-btn" onclick="closePos('${s}')">CLOSE POSITION (COVER)</button>` : ''}
                 </div>`;
             }
             document.getElementById('market-list').innerHTML = html;
+            renderLog();
+            save();
         }
 
         function trade(s, dir) {
-            const cost = stocks[s];
-            if (dir === 1 && cash < cost) return alert("No cash!");
-            // When shorting (dir -1), cash actually increases initially
-            cash -= (cost * dir);
+            if (dir === 1 && cash < stocks[s]) return alert("No cash!");
+            cash -= (stocks[s] * dir);
             portfolio[s] = (portfolio[s] || 0) + dir;
+            addLog(`${dir > 0 ? 'Opened Long' : 'Opened Short'} ${s} @ $${stocks[s].toFixed(2)}`);
             updateUI();
         }
 
         function closePos(s) {
-            const pos = portfolio[s];
-            cash += (pos * stocks[s]);
+            addLog(`Closed ${s} @ $${stocks[s].toFixed(2)}`);
+            cash += (portfolio[s] * stocks[s]);
             portfolio[s] = 0;
             updateUI();
         }
 
+        function addLog(msg) {
+            logs.unshift(`${new Date().toLocaleTimeString()} - ${msg}`);
+            if(logs.length > 5) logs.pop();
+        }
+
+        function renderLog() {
+            let h = '<strong>TRADE HISTORY</strong>';
+            logs.forEach(l => h += `<div class="log-entry">${l}</div>`);
+            document.getElementById('log').innerHTML = h;
+        }
+
+        function save() {
+            localStorage.setItem('trade_cash', cash);
+            localStorage.setItem('trade_port', JSON.stringify(portfolio));
+            localStorage.setItem('trade_logs', JSON.stringify(logs));
+        }
+
+        function simulate() {
+            for(let s in stocks) {
+                let change = (Math.random() - 0.5) * 2;
+                stocks[s] += change;
+                let el = document.getElementById(`price-${s}`);
+                if(el) {
+                    el.innerText = '$' + stocks[s].toFixed(2);
+                    el.className = 'prc ' + (change > 0 ? 'up' : 'down');
+                }
+            }
+            let totalVal = cash;
+            for(let s in portfolio) totalVal += (portfolio[s] * stocks[s]);
+            document.getElementById('equity').innerText = '$' + totalVal.toLocaleString(undefined, {minimumFractionDigits: 2});
+        }
+
+        setInterval(simulate, 3000);
         updateUI();
     </script>
 </body>
